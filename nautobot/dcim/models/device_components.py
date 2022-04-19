@@ -676,10 +676,6 @@ class Interface(ComponentModel, CableTermination, PathEndpoint, BaseInterface):
                     }
                 )
 
-        # A virtual interface cannot have a parent LAG
-        if self.type == InterfaceTypeChoices.TYPE_VIRTUAL and self.lag is not None:
-            raise ValidationError({"lag": "Virtual interfaces cannot have a parent LAG interface."})
-
         # A LAG interface cannot be its own parent
         if self.present_in_database and self.lag_id == self.pk:
             raise ValidationError({"lag": "A LAG interface cannot be its own parent."})
