@@ -602,6 +602,9 @@ class InterfaceTable(DeviceComponentTable, BaseInterfaceTable, PathEndpointTable
             "type",
             "description",
         )
+        allow_child_grouping = True
+        child_grouped_by = "parent"
+        child_field_name = "child_interfaces"
 
 
 class DeviceInterfaceTable(InterfaceTable):
@@ -661,6 +664,9 @@ class DeviceInterfaceTable(InterfaceTable):
             "style": cable_status_color_css,
             "data-name": lambda record: record.name,
         }
+        allow_child_grouping = True
+        child_grouped_by = "parent"
+        child_field_name = "child_interfaces"
 
 
 class FrontPortTable(DeviceComponentTable, CableTerminationTable):

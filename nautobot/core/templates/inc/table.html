@@ -21,7 +21,7 @@
         {% for row in table.page.object_list|default:table.rows %}
             <tr {{ row.attrs.as_html }}>
                 {%  if row.has_children %}
-                    <td class="text-center">
+                    <td class="text-center clickable" data-toggle="collapse" id="{{ row.record }}" data-target=".{{ row.record }}" >
                         <i class="glyphicon glyphicon-plus"></i>
                     </td>
                 {% else %}
@@ -34,7 +34,7 @@
 
             {% if row.has_children %}
                 {% for child_row in row.children %}
-                <tr>
+                <tr class="collapse {{ row.record }}">
                     <td class="text-right"> --- </td>
                     {% for child_column, child_cell in child_row.items %}
                         <td {{ child_column.attrs.td.as_html }}>{{ child_cell }}</td>

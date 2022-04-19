@@ -22,6 +22,10 @@ from .templatetags.helpers import render_boolean
 class AncestryBoundRow(BoundRows):
     """
     BoundRows with an extra feature of adding children '.BondRow' to parent `.BoundRow` objects.
+
+    Args:
+        child_field_name (str): query related_name to get children
+            e.g <QuerySet>.child_interfaces.all(), where child_interfaces is the child_field_name
     """
 
     def __init__(self, child_field_name=None, *args, **kwargs):
