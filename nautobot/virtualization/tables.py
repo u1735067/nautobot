@@ -208,6 +208,9 @@ class VMInterfaceTable(BaseInterfaceTable):
             "tagged_vlans",
         )
         default_columns = ("pk", "virtual_machine", "name", "enabled", "description")
+        allow_child_grouping = True
+        child_grouped_by = "parent"
+        child_field_name = "child_interfaces"
 
 
 class VirtualMachineVMInterfaceTable(VMInterfaceTable):
@@ -251,3 +254,6 @@ class VirtualMachineVMInterfaceTable(VMInterfaceTable):
         row_attrs = {
             "data-name": lambda record: record.name,
         }
+        allow_child_grouping = True
+        child_grouped_by = "parent"
+        child_field_name = "child_interfaces"

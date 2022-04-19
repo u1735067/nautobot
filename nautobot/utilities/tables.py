@@ -10,12 +10,62 @@ from django.utils.html import escape, format_html
 from django.utils.safestring import mark_safe
 from django.utils.text import Truncator
 from django_tables2.data import TableQuerysetData
+from django_tables2.rows import BoundRow, BoundRows
 from django_tables2.utils import Accessor
 
 from nautobot.extras.models import ComputedField, CustomField
 from nautobot.extras.choices import CustomFieldTypeChoices
 
 from .templatetags.helpers import render_boolean
+
+
+class AncestryBoundRow(BoundRows):
+    """
+    BoundRows with an extra feature of adding children '.BondRow' to parent `.BoundRow` objects.
+    """
+
+    def __init__(self, child_field_name=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.child_field_name = child_field_name
+
+    def append(self, records, table):
+        for record in records.all():
+            yield BoundRow(record, table=table)
+
+    def attach_child_element(self, instance):
+        """
+        Attach children BondRow elements to its parent BondRow
+
+        Args:
+            instance (BondRow)
+
+        Returns:
+            BondRow
+        """
+        child_elements = getattr(instance.record, self.child_field_name)
+        if child_elements.exists():
+            setattr(instance, "has_children", True)
+            setattr(instance, "children", self.append(child_elements, instance.table))
+        return instance
+
+    def __getitem__(self, key):
+        """
+        Slicing returns a new `~.AncestryBoundRow` instance, indexing returns a single
+        `~.BoundRow` instance.
+        """
+        if isinstance(key, slice):
+            return AncestryBoundRow(
+                data=self.data[key],
+                table=self.table,
+                pinned_data=self.pinned_data,
+                child_field_name=self.child_field_name,
+            )
+        else:
+            return self.attach_child_element(super().__getitem__(key))
+
+    def __iter__(self):
+        for instance in super().__iter__():
+            yield self.attach_child_element(instance)
 
 
 class BaseTable(tables.Table):
@@ -103,6 +153,25 @@ class BaseTable(tables.Table):
                     if prefetch_path:
                         prefetch_fields.append("__".join(prefetch_path))
             self.data.data = self.data.data.prefetch_related(None).prefetch_related(*prefetch_fields)
+
+            child_grouped_by = getattr(self.Meta, "child_grouped_by", None)
+            child_field_name = getattr(self.Meta, "child_field_name", None)
+            if getattr(self.Meta, "allow_child_grouping", None) and child_grouped_by and child_field_name:
+                self.allow_child_grouping = True
+
+                # Show only objects with no parent
+                self.data.data = self.data.data.filter(**{f"{child_grouped_by}__isnull": True}).prefetch_related(
+                    child_field_name
+                )
+
+                # Attach child_objects to object
+                # This would be utilized in the DOM to display children of a parent instance
+                self.rows = AncestryBoundRow(
+                    data=self.rows.data,
+                    table=self.rows.table,
+                    pinned_data=self.rows.pinned_data,
+                    child_field_name=child_field_name,
+                )
 
     @property
     def configurable_columns(self):
