@@ -653,7 +653,10 @@ class Interface(ComponentModel, CableTermination, PathEndpoint, BaseInterface):
                 )
 
         # A physical interface cannot have a parent interface
-        if self.type != InterfaceTypeChoices.TYPE_VIRTUAL and self.parent is not None:
+        if (
+            self.type not in (InterfaceTypeChoices.TYPE_VIRTUAL, InterfaceTypeChoices.TYPE_BREAKOUT)
+            and self.parent is not None
+        ):
             raise ValidationError({"parent": "Only virtual interfaces may be assigned to a parent interface."})
 
         # A virtual interface cannot be a parent interface
@@ -716,6 +719,28 @@ class Interface(ComponentModel, CableTermination, PathEndpoint, BaseInterface):
                     {
                         "bridge": f"The selected bridge interface ({self.bridge}) belongs to {self.bridge.device}, which "
                         f"is not part of virtual chassis {self.device.virtual_chassis}."
+                    }
+                )
+
+        # A breakout should have a parent which can only be a physical interface,
+        if self.type == InterfaceTypeChoices.TYPE_BREAKOUT and (
+            not self.parent or self.parent.type in NONCONNECTABLE_IFACE_TYPES
+        ):
+            raise ValidationError(
+                {
+                    "parent": f"Interface of type {InterfaceTypeChoices.TYPE_BREAKOUT} should have a physical "
+                    f"interface parent"
+                }
+            )
+
+        # If a breakout has been associated to a parent, the parent can only have children of breakout type
+        if self.parent and self.type != InterfaceTypeChoices.TYPE_BREAKOUT:
+            has_breakout = self.parent.child_interfaces.filter(type=InterfaceTypeChoices.TYPE_BREAKOUT).exists()
+            if has_breakout:
+                raise ValidationError(
+                    {
+                        "parent": f"{self.parent} can only be connected with interface of type "
+                        f"{InterfaceTypeChoices.TYPE_BREAKOUT}"
                     }
                 )
 

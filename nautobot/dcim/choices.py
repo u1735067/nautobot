@@ -679,6 +679,7 @@ class InterfaceTypeChoices(ChoiceSet):
     # Virtual
     TYPE_VIRTUAL = "virtual"
     TYPE_LAG = "lag"
+    TYPE_BREAKOUT = "breakout"
 
     # Ethernet
     TYPE_100ME_FIXED = "100base-tx"
@@ -775,6 +776,7 @@ class InterfaceTypeChoices(ChoiceSet):
             (
                 (TYPE_VIRTUAL, "Virtual"),
                 (TYPE_LAG, "Link Aggregation Group (LAG)"),
+                (TYPE_BREAKOUT, "Breakout Connector"),
             ),
         ),
         (
