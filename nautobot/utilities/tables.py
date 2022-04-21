@@ -24,7 +24,7 @@ class AncestryBoundRow(BoundRows):
     BoundRows with an extra feature of adding children '.BondRow' to parent `.BoundRow` objects.
 
     Args:
-        child_field_name (str): query related_name to get children
+        child_field_name (str): query related_name to get children object
             e.g <QuerySet>.child_interfaces.all(), where child_interfaces is the child_field_name
     """
 

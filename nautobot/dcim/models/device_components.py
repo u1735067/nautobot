@@ -722,10 +722,8 @@ class Interface(ComponentModel, CableTermination, PathEndpoint, BaseInterface):
                     }
                 )
 
-        # A breakout should have a parent which can only be a physical interface,
-        if self.type == InterfaceTypeChoices.TYPE_BREAKOUT and (
-            not self.parent or self.parent.type in NONCONNECTABLE_IFACE_TYPES
-        ):
+        # A breakout interface can only have a physical interface as parent
+        if self.type == InterfaceTypeChoices.TYPE_BREAKOUT and (not self.parent or self.is_connectable is False):
             raise ValidationError(
                 {
                     "parent": f"Interface of type {InterfaceTypeChoices.TYPE_BREAKOUT} should have a physical "
