@@ -106,7 +106,7 @@ class RackGroup(MPTTModel, OrganizationalModel):
         super().clean()
 
         # Parent RackGroup (if any) must belong to the same Site
-        if self.parent and self.parent.site != self.site:
+        if self.parent_object and self.parent_object.site != self.site:
             raise ValidationError(f"Parent rack group ({self.parent}) must belong to the same site ({self.site})")
 
 

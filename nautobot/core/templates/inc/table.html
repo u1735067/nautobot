@@ -4,7 +4,7 @@
     {% if table.show_header %}
         <thead>
             <tr>
-                {%  if table.allow_child_grouping %}
+                {% if table.allow_child_grouping %}
                     <th></th>
                 {% endif %}
                 {% for column in table.columns %}
@@ -20,12 +20,14 @@
     <tbody>
         {% for row in table.page.object_list|default:table.rows %}
             <tr {{ row.attrs.as_html }}>
-                {%  if row.has_children %}
-                    <td class="text-center clickable" data-toggle="collapse" id="{{ row.record }}" data-target=".{{ row.record }}" >
-                        <i class="glyphicon glyphicon-plus"></i>
-                    </td>
-                {% else %}
-                    <td></td>
+                {%  if table.allow_child_grouping %}
+                    {%  if row.has_children %}
+                        <td class="text-center clickable" data-toggle="collapse" id="{{ row.record }}" data-target=".{{ row.record }}" >
+                            <i class="glyphicon glyphicon-plus"></i>
+                        </td>
+                    {% else %}
+                        <td></td>
+                    {% endif %}
                 {% endif %}
                 {% for column, cell in row.items %}
                     <td {{ column.attrs.td.as_html }}>{{ cell }}</td>
