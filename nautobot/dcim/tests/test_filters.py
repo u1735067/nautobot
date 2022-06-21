@@ -3922,6 +3922,12 @@ class CableTestCase(FilterTestCases.FilterTestCase):
         params = {"termination_b_type": [type_interface]}
         self.assertEqual(self.filterset(params, self.queryset).qs.count(), 5)
 
+    def test_termination(self):
+        params = {"termination_a": ["Interface 7", "Interface 8"]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+        params = {"termination_b": ["Interface 10", "Interface 11"]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
 
 class PowerPanelTestCase(FilterTestCases.FilterTestCase):
     queryset = PowerPanel.objects.all()

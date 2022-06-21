@@ -1,5 +1,7 @@
 import django_filters
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth import get_user_model
+from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Q
 from timezone_field import TimeZoneField
 
@@ -1434,6 +1436,8 @@ class CableFilterSet(NautobotFilterSet, StatusModelFilterSetMixin):
         choices=FeatureQuery("cable_terminations").get_choices,
         conjoined=False,
     )
+    termination_a = MultiValueCharFilter(method="filter_termination", label="Termination A (name)")
+    termination_b = MultiValueCharFilter(method="filter_termination", label="Termination B (name)")
     tag = TagFilter()
 
     class Meta:
@@ -1445,6 +1449,25 @@ class CableFilterSet(NautobotFilterSet, StatusModelFilterSetMixin):
             Q(**{"_termination_a_{}__in".format(name): value}) | Q(**{"_termination_b_{}__in".format(name): value})
         )
         return queryset
+
+    def filter_termination(self, queryset, name, value):
+        termination_choices = FeatureQuery("cable_terminations").get_choices()
+        cabled_as = name.replace("termination_", "_cabled_as_")
+        cables = set()
+        for content_type, _ in termination_choices:
+            app_label, model_name = content_type.split(".")
+            model_class = ContentType.objects.get(app_label=app_label, model=model_name).model_class()
+            try:
+                model_class._meta.get_field("name")
+                cables.update(
+                    model_class.objects.filter(**{"name__in": value, f"{cabled_as}__isnull": False}).values_list(
+                        cabled_as, flat=True
+                    )
+                )
+            except FieldDoesNotExist:
+                pass
+
+        return queryset.filter(pk__in=cables)
 
 
 # TODO: should be ConnectionFilterSetMixin
