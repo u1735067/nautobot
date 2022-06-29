@@ -88,7 +88,7 @@ from nautobot.dcim.models import (
 )
 from nautobot.circuits.models import Circuit, CircuitTermination, CircuitType, Provider
 from nautobot.extras.models import SecretsGroup, Status
-from nautobot.ipam.models import IPAddress, Prefix, VLAN, VLANGroup
+from nautobot.ipam.models import IPAddress, Prefix, Service, VLAN, VLANGroup
 from nautobot.tenancy.models import Tenant, TenantGroup
 from nautobot.utilities.testing import FilterTestCases
 from nautobot.virtualization.models import Cluster, ClusterType, VirtualMachine
@@ -377,9 +377,9 @@ def common_test_data(cls):
     VLAN.objects.create(name="VLAN 102", vid=102, site=sites[1])
     VLAN.objects.create(name="VLAN 103", vid=103, site=sites[2])
 
-    PowerFeed.objects.create(name="Powerfeed 1", rack=racks[0], power_panel=power_panels[0])
-    PowerFeed.objects.create(name="Powerfeed 1", rack=racks[1], power_panel=power_panels[1])
-    PowerFeed.objects.create(name="Powerfeed 1", rack=racks[2], power_panel=power_panels[2])
+    PowerFeed.objects.create(name="Power Feed 1", rack=racks[0], power_panel=power_panels[0])
+    PowerFeed.objects.create(name="Power Feed 2", rack=racks[1], power_panel=power_panels[1])
+    PowerFeed.objects.create(name="Power Feed 3", rack=racks[2], power_panel=power_panels[2])
 
     users = (
         User.objects.create_user(username="TestCaseUser 1"),
@@ -598,6 +598,12 @@ def common_test_data(cls):
         description="Device Bay Description 3",
     )
 
+    secrets_groups = (
+        SecretsGroup.objects.create(name="Secrets group 1", slug="secrets-group-1"),
+        SecretsGroup.objects.create(name="Secrets group 2", slug="secrets-group-2"),
+        SecretsGroup.objects.create(name="Secrets group 3", slug="secrets-group-3"),
+    )
+
     device_statuses = Status.objects.get_for_model(Device)
     device_status_map = {ds.slug: ds for ds in device_statuses.all()}
 
@@ -608,7 +614,14 @@ def common_test_data(cls):
         platform=platforms[0],
         rack=racks[0],
         site=sites[0],
+        tenant=tenants[0],
         status=device_status_map["active"],
+        cluster=clusters[0],
+        asset_tag="1001",
+        face=DeviceFaceChoices.FACE_FRONT,
+        serial="ABC",
+        position=1,
+        secrets_group=secrets_groups[0],
     )
     Device.objects.create(
         name="Device 2",
@@ -617,7 +630,15 @@ def common_test_data(cls):
         platform=platforms[1],
         rack=racks[1],
         site=sites[1],
+        tenant=tenants[1],
         status=device_status_map["staged"],
+        cluster=clusters[1],
+        asset_tag="1002",
+        face=DeviceFaceChoices.FACE_FRONT,
+        serial="DEF",
+        position=2,
+        secrets_group=secrets_groups[1],
+        local_context_data={"foo": 123},
     )
     Device.objects.create(
         name="Device 3",
@@ -626,7 +647,14 @@ def common_test_data(cls):
         platform=platforms[2],
         rack=racks[2],
         site=sites[2],
+        tenant=tenants[2],
         status=device_status_map["failed"],
+        cluster=clusters[2],
+        asset_tag="1003",
+        face=DeviceFaceChoices.FACE_REAR,
+        serial="GHI",
+        position=3,
+        secrets_group=secrets_groups[2],
     )
 
 
@@ -1935,201 +1963,49 @@ class DeviceTestCase(FilterTestCases.FilterTestCase):
 
     @classmethod
     def setUpTestData(cls):
+        common_test_data(cls)
 
-        manufacturers = (
-            Manufacturer.objects.create(name="Manufacturer 1", slug="manufacturer-1"),
-            Manufacturer.objects.create(name="Manufacturer 2", slug="manufacturer-2"),
-            Manufacturer.objects.create(name="Manufacturer 3", slug="manufacturer-3"),
-        )
+        devices = Device.objects.exclude(name="Device 3")
 
-        device_types = (
-            DeviceType.objects.create(
-                manufacturer=manufacturers[0],
-                model="Model 1",
-                slug="model-1",
-                is_full_depth=True,
-            ),
-            DeviceType.objects.create(
-                manufacturer=manufacturers[1],
-                model="Model 2",
-                slug="model-2",
-                is_full_depth=True,
-            ),
-            DeviceType.objects.create(
-                manufacturer=manufacturers[2],
-                model="Model 3",
-                slug="model-3",
-                is_full_depth=False,
-            ),
-        )
-
-        device_roles = (
-            DeviceRole.objects.create(name="Device Role 1", slug="device-role-1"),
-            DeviceRole.objects.create(name="Device Role 2", slug="device-role-2"),
-            DeviceRole.objects.create(name="Device Role 3", slug="device-role-3"),
-        )
-
-        device_statuses = Status.objects.get_for_model(Device)
-        device_status_map = {ds.slug: ds for ds in device_statuses.all()}
-
-        platforms = (
-            Platform.objects.create(name="Platform 1", slug="platform-1"),
-            Platform.objects.create(name="Platform 2", slug="platform-2"),
-            Platform.objects.create(name="Platform 3", slug="platform-3"),
-        )
-
-        regions = (
-            Region.objects.create(name="Region 1", slug="region-1"),
-            Region.objects.create(name="Region 2", slug="region-2"),
-            Region.objects.create(name="Region 3", slug="region-3"),
-        )
-
-        sites = (
-            Site.objects.create(name="Site 1", slug="site-1", region=regions[0]),
-            Site.objects.create(name="Site 2", slug="site-2", region=regions[1]),
-            Site.objects.create(name="Site 3", slug="site-3", region=regions[2]),
-        )
-
-        rack_groups = (
-            RackGroup.objects.create(name="Rack Group 1", slug="rack-group-1", site=sites[0]),
-            RackGroup.objects.create(name="Rack Group 2", slug="rack-group-2", site=sites[1]),
-            RackGroup.objects.create(name="Rack Group 3", slug="rack-group-3", site=sites[2]),
-        )
-
-        racks = (
-            Rack.objects.create(name="Rack 1", site=sites[0], group=rack_groups[0]),
-            Rack.objects.create(name="Rack 2", site=sites[1], group=rack_groups[1]),
-            Rack.objects.create(name="Rack 3", site=sites[2], group=rack_groups[2]),
-        )
-
-        cluster_type = ClusterType.objects.create(name="Cluster Type 1", slug="cluster-type-1")
-        clusters = (
-            Cluster.objects.create(name="Cluster 1", type=cluster_type),
-            Cluster.objects.create(name="Cluster 2", type=cluster_type),
-            Cluster.objects.create(name="Cluster 3", type=cluster_type),
-        )
-
-        secrets_groups = (
-            SecretsGroup.objects.create(name="Secrets group 1", slug="secrets-group-1"),
-            SecretsGroup.objects.create(name="Secrets group 2", slug="secrets-group-2"),
-            SecretsGroup.objects.create(name="Secrets group 3", slug="secrets-group-3"),
-        )
-
-        tenant_groups = (
-            TenantGroup.objects.create(name="Tenant group 1", slug="tenant-group-1"),
-            TenantGroup.objects.create(name="Tenant group 2", slug="tenant-group-2"),
-            TenantGroup.objects.create(name="Tenant group 3", slug="tenant-group-3"),
-        )
-
-        tenants = (
-            Tenant.objects.create(name="Tenant 1", slug="tenant-1", group=tenant_groups[0]),
-            Tenant.objects.create(name="Tenant 2", slug="tenant-2", group=tenant_groups[1]),
-            Tenant.objects.create(name="Tenant 3", slug="tenant-3", group=tenant_groups[2]),
-        )
-
-        devices = (
-            Device.objects.create(
-                name="Device 1",
-                device_type=device_types[0],
-                device_role=device_roles[0],
-                platform=platforms[0],
-                tenant=tenants[0],
-                serial="ABC",
-                asset_tag="1001",
-                site=sites[0],
-                rack=racks[0],
-                position=1,
-                face=DeviceFaceChoices.FACE_FRONT,
-                status=device_status_map["active"],
-                cluster=clusters[0],
-                secrets_group=secrets_groups[0],
-                local_context_data={"foo": 123},
-            ),
-            Device.objects.create(
-                name="Device 2",
-                device_type=device_types[1],
-                device_role=device_roles[1],
-                platform=platforms[1],
-                tenant=tenants[1],
-                serial="DEF",
-                asset_tag="1002",
-                site=sites[1],
-                rack=racks[1],
-                position=2,
-                face=DeviceFaceChoices.FACE_FRONT,
-                status=device_status_map["staged"],
-                cluster=clusters[1],
-                secrets_group=secrets_groups[1],
-            ),
-            Device.objects.create(
-                name="Device 3",
-                device_type=device_types[2],
-                device_role=device_roles[2],
-                platform=platforms[2],
-                tenant=tenants[2],
-                serial="GHI",
-                asset_tag="1003",
-                site=sites[2],
-                rack=racks[2],
-                position=3,
-                face=DeviceFaceChoices.FACE_REAR,
-                status=device_status_map["failed"],
-                cluster=clusters[2],
-                secrets_group=secrets_groups[2],
-            ),
-        )
-
-        # Add components for filtering
-        ConsolePort.objects.create(device=devices[0], name="Console Port 1"),
-        ConsolePort.objects.create(device=devices[1], name="Console Port 2"),
-
-        ConsoleServerPort.objects.create(device=devices[0], name="Console Server Port 1"),
-        ConsoleServerPort.objects.create(device=devices[1], name="Console Server Port 2"),
-
-        PowerPort.objects.create(device=devices[0], name="Power Port 1"),
-        PowerPort.objects.create(device=devices[1], name="Power Port 2"),
-
-        PowerOutlet.objects.create(device=devices[0], name="Power Outlet 1"),
-        PowerOutlet.objects.create(device=devices[1], name="Power Outlet 2"),
-
-        interfaces = (
-            Interface.objects.create(device=devices[0], name="Interface 1", mac_address="00-00-00-00-00-01"),
-            Interface.objects.create(device=devices[1], name="Interface 2", mac_address="00-00-00-00-00-02"),
-        )
-
-        rear_ports = (
-            RearPort.objects.create(device=devices[0], name="Rear Port 1", type=PortTypeChoices.TYPE_8P8C),
-            RearPort.objects.create(device=devices[1], name="Rear Port 2", type=PortTypeChoices.TYPE_8P8C),
-        )
-
-        FrontPort.objects.create(
-            device=devices[0],
-            name="Front Port 1",
-            type=PortTypeChoices.TYPE_8P8C,
-            rear_port=rear_ports[0],
-        ),
-        FrontPort.objects.create(
-            device=devices[1],
-            name="Front Port 2",
-            type=PortTypeChoices.TYPE_8P8C,
-            rear_port=rear_ports[1],
-        ),
-
-        DeviceBay.objects.create(device=devices[0], name="Device Bay 1"),
-        DeviceBay.objects.create(device=devices[1], name="Device Bay 2"),
+        # Components for filtering
+        ConsolePort.objects.first().delete()
+        ConsoleServerPort.objects.first().delete()
+        DeviceBay.objects.get(name="Device Bay 3").delete()
+        Interface.objects.get(name="Interface 3").delete()
+        PowerPort.objects.first().delete()
+        PowerOutlet.objects.first().delete()
+        RearPort.objects.first().delete()
+        InventoryItem.objects.create(device=devices[0], name="Inventory Item 1")
+        InventoryItem.objects.create(device=devices[1], name="Inventory Item 2")
+        Service.objects.create(device=devices[0], name="ssh", protocol="tcp", ports=[22])
+        Service.objects.create(device=devices[1], name="dns", protocol="udp", ports=[53])
 
         # Assign primary IPs for filtering
-
+        interfaces = Interface.objects.all()
         ipaddresses = (
             IPAddress.objects.create(address="192.0.2.1/24", assigned_object=interfaces[0]),
             IPAddress.objects.create(address="192.0.2.2/24", assigned_object=interfaces[1]),
+            IPAddress.objects.create(address="2600::1/120", assigned_object=interfaces[0]),
+            IPAddress.objects.create(address="2600::0100/120", assigned_object=interfaces[1]),
         )
 
-        Device.objects.filter(pk=devices[0].pk).update(primary_ip4=ipaddresses[0])
-        Device.objects.filter(pk=devices[1].pk).update(primary_ip4=ipaddresses[1])
+        Device.objects.filter(pk=devices[0].pk).update(
+            primary_ip4=ipaddresses[0],
+            primary_ip6=ipaddresses[2],
+            comments="Comment A",
+        )
+        Device.objects.filter(pk=devices[1].pk).update(
+            primary_ip4=ipaddresses[1],
+            primary_ip6=ipaddresses[3],
+            comments="Comment B",
+        )
+
+        # Update existing interface objects with mac addresses for filtering
+        Interface.objects.filter(pk=interfaces[0].pk).update(mac_address="00-00-00-00-00-01")
+        Interface.objects.filter(pk=interfaces[1].pk).update(mac_address="00-00-00-00-00-02")
 
         # VirtualChassis assignment for filtering
-        virtual_chassis = VirtualChassis.objects.create(master=devices[0])
+        virtual_chassis = VirtualChassis.objects.create(name="vc1", master=devices[0])
         Device.objects.filter(pk=devices[0].pk).update(virtual_chassis=virtual_chassis, vc_position=1, vc_priority=1)
         Device.objects.filter(pk=devices[1].pk).update(virtual_chassis=virtual_chassis, vc_position=2, vc_priority=2)
 
@@ -2213,10 +2089,14 @@ class DeviceTestCase(FilterTestCases.FilterTestCase):
         racks = Rack.objects.all()[:2]
         params = {"rack_id": [racks[0].pk, racks[1].pk]}
         self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+        params = {"rack": [racks[0].pk, racks[1].name]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
 
     def test_cluster(self):
         clusters = Cluster.objects.all()[:2]
         params = {"cluster_id": [clusters[0].pk, clusters[1].pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+        params = {"cluster": [clusters[0].pk, clusters[1].name]}
         self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
 
     def test_model(self):
@@ -2249,8 +2129,12 @@ class DeviceTestCase(FilterTestCases.FilterTestCase):
         params = {"has_primary_ip": "false"}
         self.assertEqual(self.filterset(params, self.queryset).qs.count(), 1)
 
-    def test_virtual_chassis_id(self):
+    def test_virtual_chassis(self):
         params = {"virtual_chassis_id": [VirtualChassis.objects.first().pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+        params = {"virtual_chassis": [VirtualChassis.objects.first().pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+        params = {"virtual_chassis": [VirtualChassis.objects.first().name]}
         self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
 
     def test_virtual_chassis_member(self):
@@ -2379,6 +2263,114 @@ class DeviceTestCase(FilterTestCases.FilterTestCase):
         value = self.queryset.values_list("pk", flat=True)[0]
         params = {"q": value}
         self.assertEqual(self.filterset(params, self.queryset).qs.values_list("pk", flat=True)[0], value)
+
+    def test_device_type(self):
+        device_type = DeviceType.objects.all()[:2]
+        params = {"device_type": [device_type[0].pk, device_type[1].pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_device_role(self):
+        device_role = DeviceRole.objects.all()[:2]
+        params = {"device_role": [device_role[0].pk, device_role[1].pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_primary_ip4(self):
+        ipv4_addresses = IPAddress.objects.filter(prefix_length=24)[:2]
+        params = {"primary_ip4": [ipv4_addresses[0].pk, ipv4_addresses[1].pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_primary_ip6(self):
+        ipv6_addresses = IPAddress.objects.filter(prefix_length=120)[:2]
+        params = {"primary_ip6": [ipv6_addresses[0].pk, ipv6_addresses[1].pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_comments(self):
+        params = {"comments": ["Comment A", "Comment B"]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_front_ports(self):
+        front_ports = FrontPort.objects.all()[:2]
+        params = {"front_ports": [front_ports[0].pk, front_ports[1].name]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_rear_ports(self):
+        rear_ports = RearPort.objects.all()[:2]
+        params = {"rear_ports": [rear_ports[0].pk, rear_ports[1].name]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_parent_bay(self):
+        site = Site.objects.first()
+        role = DeviceRole.objects.first()
+        device_statuses = Status.objects.get_for_model(Device)
+        device_status_map = {ds.slug: ds for ds in device_statuses.all()}
+        parent_type = DeviceType.objects.get(slug="model-2")
+        child_type = DeviceType.objects.get(slug="model-3")
+        Device.objects.create(
+            name="Parent 2",
+            site=site,
+            device_role=role,
+            device_type=parent_type,
+            status=device_status_map["active"],
+        )
+        child_devices = (
+            Device.objects.create(
+                name="Child 1",
+                site=site,
+                device_role=role,
+                device_type=child_type,
+                status=device_status_map["active"],
+            ),
+            Device.objects.create(
+                name="Child 2",
+                site=site,
+                device_role=role,
+                device_type=child_type,
+                status=device_status_map["active"],
+            ),
+        )
+        parent_bays = list(DeviceBay.objects.filter(name="Device Bay 2"))
+        parent_bays[0].installed_device = child_devices[0]
+        parent_bays[1].installed_device = child_devices[1]
+        parent_bays[0].save()
+        parent_bays[1].save()
+        params = {"parent_bay": [parent_bays[0].pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 1)
+        params = {"parent_bay": ["Device Bay 2"]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_inventory_items(self):
+        inventory_items = InventoryItem.objects.all()[:2]
+        params = {"inventory_items": [inventory_items[0].pk, inventory_items[1].pk]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_has_inventory_items(self):
+        params = {"has_inventory_items": True}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+        params = {"has_inventory_items": False}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 1)
+
+    def test_vc_master_for(self):
+        vc_master_2 = Device.objects.create(
+            name="VC Master 2",
+            site=Site.objects.first(),
+            device_role=DeviceRole.objects.first(),
+            device_type=DeviceType.objects.first(),
+        )
+        VirtualChassis.objects.create(name="vc2", master=vc_master_2)
+        vc_master_for = list(VirtualChassis.objects.all()[:2])
+        params = {"vc_master_for": [vc_master_for[0].pk, vc_master_for[1].name]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_services(self):
+        services = Service.objects.all()[:2]
+        params = {"services": [services[0].pk, services[1].name]}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+
+    def test_has_services(self):
+        params = {"has_services": True}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 2)
+        params = {"has_services": False}
+        self.assertEqual(self.filterset(params, self.queryset).qs.count(), 1)
 
 
 class ConsolePortTestCase(FilterTestCases.FilterTestCase):
