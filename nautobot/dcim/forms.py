@@ -108,6 +108,8 @@ from .models import (
     FrontPort,
     FrontPortTemplate,
     Interface,
+    InterfaceRedundancyGroup,
+    InterfaceRedundancyGroupAssociation,
     InterfaceTemplate,
     Location,
     LocationType,
@@ -4473,6 +4475,100 @@ class PowerFeedFilterForm(NautobotFilterForm, StatusModelFilterFormMixin):
     amperage = forms.IntegerField(required=False)
     max_utilization = forms.IntegerField(required=False)
     tag = TagFilterField(model)
+
+
+#
+# Interface Redundancy Groups
+#
+
+
+class InterfaceRedundancyGroupForm(NautobotModelForm):
+    """InterfaceRedundancyGroup creation/edit form."""
+
+    model = InterfaceRedundancyGroup
+    slug = SlugField()
+    subscribers = DynamicModelMultipleChoiceField(
+        queryset=Device.objects.all(),
+        required=False,
+        help_text="Subscribers are Devices that have a dependency on the Redundancy group.",
+    )
+
+    class Meta:
+        """Meta attributes."""
+
+        model = InterfaceRedundancyGroup
+        fields = ["name", "slug", "description", "subscribers"]
+
+
+class InterfaceRedundancyGroupAssociationFormSetForm(forms.ModelForm):
+    """InterfaceRedundancyGroupAssociation model form for use inline on InterfaceRedundancyGroupAssociationFormSet."""
+
+    device = DynamicModelChoiceField(queryset=Device.objects.all(), required=False)
+    interface = DynamicModelChoiceField(queryset=Interface.objects.all(), query_params={"device_id": "$device"})
+    primary_ip = DynamicModelChoiceField(
+        queryset=IPAddress.objects.all(), query_params={"interface_id": "$interface"}, required=False
+    )
+    virtual_ip = DynamicModelChoiceField(
+        queryset=IPAddress.objects.all(), query_params={"interface_id": "$interface"}, required=False
+    )
+
+    class Meta:
+        """Meta attributes."""
+
+        model = InterfaceRedundancyGroupAssociation
+        fields = ("device", "interface", "primary_ip", "virtual_ip", "priority")
+
+
+# Inline formset for use with providing dynamic rows when creating/editing assignments of Interface to RedundancyGroup.
+InterfaceRedundancyGroupAssociationFormSet = forms.inlineformset_factory(
+    parent_model=InterfaceRedundancyGroup,
+    model=InterfaceRedundancyGroupAssociation,
+    form=InterfaceRedundancyGroupAssociationFormSetForm,
+    fk_name="group",
+    extra=3,
+)
+
+
+class InterfaceRedundancyGroupBulkEditForm(
+    TagsBulkEditFormMixin, StatusModelBulkEditFormMixin, NautobotBulkEditForm, LocalContextModelBulkEditForm
+):
+    """InterfaceRedundancyGroup bulk edit form."""
+
+    pk = forms.ModelMultipleChoiceField(
+        queryset=InterfaceRedundancyGroup.objects.all(), widget=forms.MultipleHiddenInput
+    )
+    description = forms.CharField(required=False)
+
+    class Meta:
+        """Meta attributes."""
+
+        nullable_fields = [
+            "description",
+        ]
+
+
+class InterfaceRedundancyGroupFilterForm(BootstrapMixin, forms.ModelForm):
+    """Filter form to filter searches."""
+
+    q = forms.CharField(
+        required=False,
+        label="Search",
+        help_text="Search within Name or Slug.",
+    )
+    name = forms.CharField(required=False, label="Name")
+    slug = forms.CharField(required=False, label="Slug")
+
+    class Meta:
+        """Meta attributes."""
+
+        model = InterfaceRedundancyGroup
+        # Define the fields above for ordering and widget purposes
+        fields = [
+            "q",
+            "name",
+            "slug",
+            "description",
+        ]
 
 
 class DeviceRedundancyGroupForm(NautobotModelForm):

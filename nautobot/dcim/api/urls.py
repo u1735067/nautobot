@@ -71,6 +71,10 @@ router.register("power-feeds", views.PowerFeedViewSet)
 # Device Redundancy Group
 router.register("device-redundancy-groups", views.DeviceRedundancyGroupViewSet)
 
+# Interface Redundancy Group
+router.register("interface-redundancy-groups", views.InterfaceRedundancyGroupViewSet)
+router.register("interface-redundancy-group-associationss", views.InterfaceRedundancyGroupAssociationViewSet)
+
 # Miscellaneous
 router.register("connected-device", views.ConnectedDeviceViewSet, basename="connected-device")
 

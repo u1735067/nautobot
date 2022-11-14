@@ -50,6 +50,8 @@ from nautobot.dcim.models import (
     FrontPort,
     FrontPortTemplate,
     Interface,
+    InterfaceRedundancyGroup,
+    InterfaceRedundancyGroupAssociation,
     InterfaceTemplate,
     Location,
     LocationType,
@@ -108,6 +110,7 @@ from .nested_serializers import (  # noqa: F401
     NestedFrontPortSerializer,
     NestedFrontPortTemplateSerializer,
     NestedInterfaceSerializer,
+    NestedInterfaceRedundancyGroupSerializer,
     NestedInterfaceTemplateSerializer,
     NestedInventoryItemSerializer,
     NestedLocationSerializer,
@@ -1152,6 +1155,37 @@ class DeviceRedundancyGroupSerializer(NautobotModelSerializer, TaggedObjectSeria
             "secrets_group",
             "comments",
         ]
+
+
+class InterfaceRedundancyGroupAssociationSerializer(
+    ValidatedModelSerializer, TaggedObjectSerializer
+):  # pylint: disable=too-many-ancestors
+    """InterfaceRedundancyGroupAssociation Serializer."""
+
+    url = serializers.HyperlinkedIdentityField(view_name="dcim-api:interfaceredundancygroupassociation-detail")
+    interface = NestedInterfaceSerializer()
+    primary_ip = NestedIPAddressSerializer()
+    virtual_ip = NestedIPAddressSerializer()
+    group = NestedInterfaceRedundancyGroupSerializer()
+
+    class Meta:
+        """Meta attributes."""
+
+        model = InterfaceRedundancyGroupAssociation
+        fields = ["id", "url", "group", "interface", "primary_ip", "virtual_ip", "priority"]
+
+
+class InterfaceRedundancyGroupSerializer(NautobotModelSerializer, TaggedObjectSerializer, StatusModelSerializerMixin):
+    """InterfaceRedundancyGroup Serializer."""
+
+    url = serializers.HyperlinkedIdentityField(view_name="dcim-api:interfaceredundancygroup-detail")
+    members = InterfaceRedundancyGroupAssociationSerializer(source="members_set", many=True, read_only=True)
+
+    class Meta:
+        """Meta attributes."""
+
+        model = InterfaceRedundancyGroup
+        fields = "__all__"
 
 
 #
