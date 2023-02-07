@@ -144,9 +144,10 @@ def migrate_site_and_region_data_to_locations(apps, schema_editor):
     Site = apps.get_model("dcim", "site")
     LocationType = apps.get_model("dcim", "locationtype")
     Location = apps.get_model("dcim", "location")
+    ContentType = apps.get_model("contenttypes", "ContentType")
     region_ct = ContentType.objects.get_for_model(Region)
-    site_ct = ContentType.objects.get_for_model(site_ct)
-    location_ct = ContentType.objects.get_for_model(location_ct)
+    site_ct = ContentType.objects.get_for_model(Site)
+    location_ct = ContentType.objects.get_for_model(Location)
 
     # Region instances exist
     if Region.objects.exists():
@@ -181,7 +182,6 @@ def migrate_site_and_region_data_to_locations(apps, schema_editor):
 
     # Reassign Region Models to Locations of Region LocationType
     if Region.objects.exists():
-        ContentType = apps.get_model("contenttypes", "ContentType")
         # Config Context
         ConfigContext = apps.get_model("extras", "configcontext")
         ccs = ConfigContext.objects.filter(regions__isnull=False).prefetch_related("locations", "regions")
@@ -213,27 +213,27 @@ def migrate_site_and_region_data_to_locations(apps, schema_editor):
         Relationship = apps.get_model("extras", "relationship")
         RelationshipAssociation = apps.get_model("extras", "relationshipassociation")
 
-        src_relationships = Relationship.objects.filter(source_type=region_ct)
-        src_relationships.update(source_type=location_ct)
-        relationship_associations = RelationshipAssociation.objects.filter(source_type=region_ct)
-        relationship_associations.update(source_type=location_ct)
-        for relationship_association in relationship_associations:
+        src_relationship_associations = RelationshipAssociation.objects.filter(relationship__source_type=region_ct)
+        src_relationship_associations.update(source_type=location_ct)
+        for relationship_association in src_relationship_associations:
             src_region = Region.objects.get(id=relationship_association.source_id)
             src_loc = Location.objects.get(name=src_region.name, location_type=region_lt)
             relationship_association.source = src_loc
             relationship_association.source_id = src_loc.id
-        RelationshipAssociation.bulk_update(["source", "source_id"], 1000)
+            relationship_association.save()
+        src_relationships = Relationship.objects.filter(source_type=region_ct)
+        src_relationships.update(source_type=location_ct)
 
-        dst_relationships = Relationship.objects.filter(destination_type=region_ct)
-        dst_relationships.update(destination_type=location_ct)
-        relationship_associations = RelationshipAssociation.objects.filter(destination_type=region_ct)
-        relationship_associations.update(destination_type=location_ct)
-        for relationship_association in relationship_associations:
+        dst_relationship_associations = RelationshipAssociation.objects.filter(relationship__destination_type=region_ct)
+        dst_relationship_associations.update(destination_type=location_ct)
+        for relationship_association in dst_relationship_associations:
             dst_region = Region.objects.get(id=relationship_association.destination_id)
             dst_loc = Location.objects.get(name=dst_region.name, location_type=region_lt)
             relationship_association.destination = dst_loc
             relationship_association.destination_id = dst_loc.pk
-        RelationshipAssociation.bulk_update(["destination", "destination_id"], 1000)
+            relationship_association.save()
+        dst_relationships = Relationship.objects.filter(destination_type=region_ct)
+        dst_relationships.update(destination_type=location_ct)
 
     # Reassign Site Models to Locations of Site LocationType
     if Site.objects.exists():  # Iff Site instances exist
@@ -251,7 +251,6 @@ def migrate_site_and_region_data_to_locations(apps, schema_editor):
         VLAN = apps.get_model("ipam", "vlan")
         Cluster = apps.get_model("virtualization", "cluster")
 
-        ContentType = apps.get_model("contenttypes", "ContentType")
         site_lt.content_types.set(ContentType.objects.filter(FeatureQuery("locations").get_query()))
 
         cts = CircuitTermination.objects.filter(location__isnull=True).select_related("site")
@@ -285,27 +284,27 @@ def migrate_site_and_region_data_to_locations(apps, schema_editor):
         Location.objects.bulk_update(site_locs, ["_custom_field_data"], 1000)
 
         # Relationship
-        src_relationships = Relationship.objects.filter(source_type=site_ct)
-        src_relationships.update(source_type=location_ct)
-        relationship_associations = RelationshipAssociation.objects.filter(source_type=site_ct)
-        relationship_associations.update(source_type=location_ct)
-        for relationship_association in relationship_associations:
+        src_relationship_associations = RelationshipAssociation.objects.filter(relationship__source_type=site_ct)
+        src_relationship_associations.update(source_type=location_ct)
+        for relationship_association in src_relationship_associations:
             src_site = Site.objects.get(id=relationship_association.source_id)
             src_loc = Location.objects.get(name=src_site.name, location_type=site_lt)
             relationship_association.source = src_loc
             relationship_association.source_id = src_loc.id
-        RelationshipAssociation.bulk_update(["source", "source_id"], 1000)
+            relationship_association.save()
+        src_relationships = Relationship.objects.filter(source_type=site_ct)
+        src_relationships.update(source_type=location_ct)
 
-        dst_relationships = Relationship.objects.filter(destination_type=site_ct)
-        dst_relationships.update(destination_type=location_ct)
-        relationship_associations = RelationshipAssociation.objects.filter(destination_type=site_ct)
-        relationship_associations.update(destination_type=location_ct)
-        for relationship_association in relationship_associations:
+        dst_relationship_associations = RelationshipAssociation.objects.filter(relationship__destination_type=site_ct)
+        dst_relationship_associations.update(destination_type=location_ct)
+        for relationship_association in dst_relationship_associations:
             dst_site = Site.objects.get(id=relationship_association.destination_id)
             dst_loc = Location.objects.get(name=dst_site.name, location_type=site_lt)
             relationship_association.destination = dst_loc
             relationship_association.destination_id = dst_loc.pk
-        RelationshipAssociation.bulk_update(["destination", "destination_id"], 1000)
+            relationship_association.save()
+        dst_relationships = Relationship.objects.filter(destination_type=site_ct)
+        dst_relationships.update(destination_type=location_ct)
 
         devices = Device.objects.filter(location__isnull=True).select_related("site")
         for device in devices:
