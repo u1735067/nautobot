@@ -2,6 +2,8 @@ const {
     NautobotCracoAliasPlugin,
 } = require("./lib/nautobot-craco-alias-plugin");
 
+const { CracoAliasPlugin } = require("react-app-alias-ex");
+
 // Suppress console logging unless debugging is explicitly enabled.
 if (!process.env.NAUTOBOT_DEBUG) {
     console.log = function () {};
@@ -10,7 +12,7 @@ if (!process.env.NAUTOBOT_DEBUG) {
 module.exports = {
     plugins: [
         {
-            plugin: NautobotCracoAliasPlugin,
+            plugin: CracoAliasPlugin,
         },
     ],
 

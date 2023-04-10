@@ -18,12 +18,13 @@ function aliasJest(options) {
         const returning = {
             ...expanded,
             moduleDirectories: [
-                ...(config.moduleDirectories || ["node_modules"]), // react-app-alias-ex defaulted to [] instead of the Jest default of ["node_modules"]
+                ...(config.moduleDirectories || []), // react-app-alias-ex defaulted to [] instead of the Jest default of ["node_modules"]
                 path.relative(
                     // This was modified from react-app-alias-ex to use path.relative() instead of path.resolve()
                     expanded.rootDir,
                     path.resolve(paths.appPath, "node_modules")
-                ),
+                ), // react-app-alias-ex defaulted to [] instead of the Jest default of ["node_modules"]
+                path.resolve(paths.appPath, "node_modules"),
             ],
         };
         return returning;
