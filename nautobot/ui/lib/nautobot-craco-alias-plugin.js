@@ -26,6 +26,7 @@ function aliasJest(options) {
                 ),
             ],
         };
+        console.log(returning)
         return returning;
     };
 }
