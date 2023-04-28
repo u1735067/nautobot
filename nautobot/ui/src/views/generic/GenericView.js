@@ -212,6 +212,13 @@ export default function GenericView({
         [menu, objectData, pathname]
     );
 
+    // TODO: We need an "authRequired" property and a place to send users when not authed
+    // import { useNavigate } from "react-router-dom";
+    // const navigate = useNavigate();
+    // if (!session?.data?.logged_in) {
+    //     navigate("/");
+    // }
+
     const currentContext = useSelector(
         (state) => state.appState.currentContext
     );
