@@ -227,20 +227,24 @@ export default function ObjectRetrieve({ api_url }) {
         <GenericView>
             <Box background="white-0" borderRadius="md">
                 <Box display="flex" justifyContent="space-between" padding="md">
-                    <Heading
-                        display="flex"
-                        alignItems="center"
-                        gap="5px"
-                        pb="sm"
-                    >
+                    <Heading display="flex" alignItems="center" gap="5px">
                         <NtcThumbnailIcon width="25px" height="30px" />{" "}
                         <Text size="H1" as="h1">
                             {obj.display}
                         </Text>
-                        {obj.status && obj.status.display}
-                        <ReferenceDataTag model_name="status" pk="000" />
                     </Heading>
-                    <ButtonGroup pb="sm" alignItems="center">
+                    <Box flexGrow="1">
+                        <Text size="P2">
+                            <ReferenceDataTag
+                                model_name="statuses"
+                                id={obj.status.id}
+                                variant="unknown"
+                                size="sm"
+                            />
+                        </Text>
+                    </Box>
+
+                    <ButtonGroup alignItems="center">
                         <UIButton size="sm" variant="secondary">
                             Filters
                         </UIButton>
