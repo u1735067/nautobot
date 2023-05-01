@@ -11,17 +11,19 @@ export function ReferenceDataTag(props) {
         uuid: id,
     });
 
-    console.log(props);
+    let display = "Loading...";
+    let color = "cccccc";
 
-    const display = data.display || data.label;
+    if (isSuccess) {
+        display = data.display || data.label;
+        color = data.color;
+    }
 
     return (
         <Skeleton isLoaded={isSuccess}>
             <Tag
-                bg={"#" + data.color}
-                color={
-                    calculateLuminance(data.color) > 186 ? "#000000" : "#ffffff"
-                }
+                bg={"#" + color}
+                color={calculateLuminance(color) > 186 ? "#000000" : "#ffffff"}
                 {...props}
             >
                 {display}
