@@ -3,9 +3,10 @@ from collections import OrderedDict, namedtuple
 
 from django.contrib import messages
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import EmptyPage, PageNotAnInteger
 from django.db import transaction
-from django.db.models import F, Prefetch
+from django.db.models import F, Prefetch, ProtectedError
 from django.forms import (
     ModelMultipleChoiceField,
     MultipleHiddenInput,
@@ -13,22 +14,32 @@ from django.forms import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import escape
+from django.utils.http import is_safe_url
 from django.utils.safestring import mark_safe
 from django.views.generic import View
 from django_tables2 import RequestConfig
 
 from nautobot.circuits.models import Circuit
 from nautobot.core.views import generic
+from nautobot.core.views.viewsets import NautobotUIViewSet
+from nautobot.core.views.mixins import (
+    ObjectDetailViewMixin,
+    ObjectListViewMixin,
+    ObjectDestroyViewMixin,
+    ObjectBulkDestroyViewMixin,
+    ObjectBulkUpdateViewMixin,
+)
 from nautobot.extras.views import ObjectChangeLogView, ObjectConfigContextView, ObjectDynamicGroupsView
 from nautobot.ipam.models import IPAddress, Prefix, Service, VLAN
 from nautobot.ipam.tables import InterfaceIPAddressTable, InterfaceVLANTable
-from nautobot.utilities.forms import ConfirmationForm
+from nautobot.utilities.forms import ConfirmationForm, restrict_form_fields
 from nautobot.utilities.paginator import EnhancedPaginator, get_paginate_count
 from nautobot.utilities.permissions import get_permission_for_model
-from nautobot.utilities.utils import csv_format, count_related
+from nautobot.utilities.utils import csv_format, count_related, prepare_cloned_fields
 from nautobot.utilities.views import GetReturnURLMixin, ObjectPermissionRequiredMixin
 from nautobot.virtualization.models import VirtualMachine
 from . import filters, forms, tables
+from .api import serializers
 from .choices import DeviceFaceChoices
 from .constants import NONCONNECTABLE_IFACE_TYPES
 from .models import (
@@ -41,11 +52,13 @@ from .models import (
     Device,
     DeviceBay,
     DeviceBayTemplate,
+    DeviceRedundancyGroup,
     DeviceRole,
     DeviceType,
     FrontPort,
     FrontPortTemplate,
     Interface,
+    InterfaceRedundancyGroup,
     InterfaceTemplate,
     InventoryItem,
     Location,
@@ -1725,7 +1738,7 @@ class ChildDeviceBulkImportView(generic.BulkImportView):
 class DeviceBulkEditView(generic.BulkEditView):
     # v2 TODO(jathan): Replace prefetch_related with select_related
     queryset = Device.objects.prefetch_related(
-        "tenant", "site", "rack", "device_role", "device_type__manufacturer", "secrets_group"
+        "tenant", "site", "rack", "device_role", "device_type__manufacturer", "secrets_group", "device_redundancy_group"
     )
     filterset = filters.DeviceFilterSet
     table = tables.DeviceTable
@@ -3212,3 +3225,150 @@ class PowerFeedBulkDeleteView(generic.BulkDeleteView):
     queryset = PowerFeed.objects.prefetch_related("power_panel", "rack")
     filterset = filters.PowerFeedFilterSet
     table = tables.PowerFeedTable
+
+
+class InterfaceRedundancyGroupEditView(generic.ObjectEditView):
+    """InterfaceRedundancyGroup create & update views."""
+
+    queryset = InterfaceRedundancyGroup
+    model_form = forms.InterfaceRedundancyGroupForm
+    template_name = "dcim/interfaceredundancygroup_create.html"
+
+    def get_extra_context(self, request, instance):
+        """Populates formset."""
+        ctx = super().get_extra_context(request, instance)
+
+        formset_kwargs = {"instance": instance}
+        if request.POST:
+            formset_kwargs["data"] = request.POST
+
+        ctx["members"] = forms.InterfaceRedundancyGroupAssociationFormSet(**formset_kwargs)
+
+        return ctx
+
+    def post(self, request, *args, **kwargs):  # pylint: disable=too-many-locals,too-many-branches
+        """Overloads post to account for formset."""
+        obj = self.alter_obj(self.get_object(kwargs), request, args, kwargs)
+        form = self.model_form(data=request.POST, files=request.FILES, instance=obj)
+        restrict_form_fields(form, request.user)
+
+        if form.is_valid():
+
+            try:
+                with transaction.atomic():
+                    object_created = not form.instance.present_in_database
+                    # Obtain the instance, but do not yet `save()` it to the database.
+                    obj = form.save(commit=False)
+
+                    ctx = self.get_extra_context(request, obj)
+
+                    # After filters have been set, now we save the object to the database.
+                    obj.save()
+                    # Check that the new object conforms with any assigned object-level permissions
+                    self.queryset.get(pk=obj.pk)
+
+                    # Process the formsets for children
+                    members = ctx["members"]
+                    if members.is_valid():
+                        members.save()
+                    else:
+                        raise RuntimeError(members.errors)
+                verb = "Created" if object_created else "Modified"
+                msg = f"{verb} {self.queryset.model._meta.verbose_name}"
+                if hasattr(obj, "get_absolute_url"):
+                    msg = f'{msg} <a href="{obj.get_absolute_url()}">{escape(obj)}</a>'
+                else:
+                    msg = f"{msg} {escape(obj)}"  # nosec
+                messages.success(request, mark_safe(msg))  # nosec
+
+                if "_addanother" in request.POST:
+
+                    # If the object has clone_fields, pre-populate a new instance of the form
+                    if hasattr(obj, "clone_fields"):
+                        url = f"{request.path}?{prepare_cloned_fields(obj)}"
+                        return redirect(url)
+
+                    return redirect(request.get_full_path())
+
+                return_url = form.cleaned_data.get("return_url")
+                if return_url is not None and is_safe_url(url=return_url, allowed_hosts=request.get_host()):
+                    return redirect(return_url)
+                return redirect(self.get_return_url(request, obj))
+
+            except ObjectDoesNotExist:
+                msg = "Object save failed due to object-level permissions violation."
+                form.add_error(None, msg)
+            except RuntimeError:
+                msg = "Errors encountered when saving Dynamic Group associations. See below."
+                form.add_error(None, msg)
+            except ProtectedError as err:
+                # e.g. Trying to delete a something that is in use.
+                err_msg = err.args[0]
+                protected_obj = err.protected_objects[0]
+                msg = f"{protected_obj.value}: {err_msg} Please cancel this edit and start again."
+                form.add_error(None, msg)
+
+        else:
+            form.add_error(None, "Form validation failed")
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "obj": obj,
+                "obj_type": self.queryset.model._meta.verbose_name,
+                "form": form,
+                "return_url": self.get_return_url(request, obj),
+                "editing": obj.present_in_database,
+                **self.get_extra_context(request, obj),
+            },
+        )
+
+
+class InterfaceRedundancyGroupUIViewSet(
+    ObjectDetailViewMixin,
+    ObjectListViewMixin,
+    ObjectDestroyViewMixin,
+    ObjectBulkDestroyViewMixin,
+    ObjectBulkUpdateViewMixin,
+):
+    """ViewSet for the InterfaceRedundancyGroup model."""
+
+    bulk_update_form_class = forms.InterfaceRedundancyGroupBulkEditForm
+    filterset_class = filters.InterfaceRedundancyGroupFilterSet
+    filterset_form_class = forms.InterfaceRedundancyGroupFilterForm
+    queryset = InterfaceRedundancyGroup.objects.all()
+    serializer_class = serializers.InterfaceRedundancyGroupSerializer
+    table_class = tables.InterfaceRedundancyGroupTable
+    # action_buttons = ("add",)
+
+    lookup_field = "pk"
+
+    def _process_bulk_create_form(self, form):
+        """Bulk creating (CSV import) is not supported."""
+        raise NotImplementedError()
+
+
+class DeviceRedundancyGroupUIViewSet(NautobotUIViewSet):
+    bulk_create_form_class = forms.DeviceRedundancyGroupCSVForm
+    bulk_update_form_class = forms.DeviceRedundancyGroupBulkEditForm
+    filterset_class = filters.DeviceRedundancyGroupFilterSet
+    filterset_form_class = forms.DeviceRedundancyGroupFilterForm
+    form_class = forms.DeviceRedundancyGroupForm
+    queryset = (
+        DeviceRedundancyGroup.objects.select_related("status")
+        .prefetch_related("members")
+        .annotate(member_count=count_related(Device, "device_redundancy_group"))
+    )
+    serializer_class = serializers.DeviceRedundancyGroupSerializer
+    table_class = tables.DeviceRedundancyGroupTable
+
+    def get_extra_context(self, request, instance):
+        context = super().get_extra_context(request, instance)
+
+        if self.action == "retrieve" and instance:
+            members = instance.members_sorted.restrict(request.user)
+            members_table = tables.DeviceTable(members)
+            members_table.columns.show("device_redundancy_group_priority")
+            context["members_table"] = members_table
+        return context

@@ -11,12 +11,13 @@ from django.db.models import F, ProtectedError, Q
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
-from nautobot.dcim.choices import DeviceFaceChoices, SubdeviceRoleChoices
+from nautobot.dcim.choices import DeviceFaceChoices, DeviceRedundancyGroupFailoverStrategyChoices, SubdeviceRoleChoices
 
 from nautobot.extras.models import ConfigContextModel, StatusModel
 from nautobot.extras.querysets import ConfigContextModelQuerySet
 from nautobot.extras.utils import extras_features
 from nautobot.core.fields import AutoSlugField
+from nautobot.core.models import BaseModel
 from nautobot.core.models.generics import OrganizationalModel, PrimaryModel
 from nautobot.utilities.choices import ColorChoices
 from nautobot.utilities.config import get_settings_or_config
@@ -35,10 +36,13 @@ from .device_components import (
 
 __all__ = (
     "Device",
+    "DeviceRedundancyGroup",
     "DeviceRole",
     "DeviceType",
     "Manufacturer",
     "Platform",
+    "InterfaceRedundancyGroup",
+    "InterfaceRedundancyGroupAssociation",
     "VirtualChassis",
 )
 
@@ -544,6 +548,21 @@ class Device(PrimaryModel, ConfigContextModel, StatusModel):
         blank=True,
         null=True,
     )
+    device_redundancy_group = models.ForeignKey(
+        to="dcim.DeviceRedundancyGroup",
+        on_delete=models.SET_NULL,
+        related_name="members",
+        blank=True,
+        null=True,
+        verbose_name="Device Redundancy Group",
+    )
+    device_redundancy_group_priority = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(1)],
+        verbose_name="Device Redundancy Group Priority",
+        help_text="The priority the device has in the device redundancy group.",
+    )
     # TODO: Profile filtering on this field if it could benefit from an index
     vc_position = models.PositiveSmallIntegerField(blank=True, null=True, validators=[MaxValueValidator(255)])
     vc_priority = models.PositiveSmallIntegerField(blank=True, null=True, validators=[MaxValueValidator(255)])
@@ -576,6 +595,8 @@ class Device(PrimaryModel, ConfigContextModel, StatusModel):
         "rack_name",
         "position",
         "face",
+        "device_redundancy_group",
+        "device_redundancy_group_priority",
         "secrets_group",
         "primary_ip",
         "comments",
@@ -786,6 +807,13 @@ class Device(PrimaryModel, ConfigContextModel, StatusModel):
                     }
                 )
 
+        if self.device_redundancy_group_priority is not None and self.device_redundancy_group is None:
+            raise ValidationError(
+                {
+                    "device_redundancy_group_priority": "Must assign a redundancy group when defining a redundancy group priority."
+                }
+            )
+
     def save(self, *args, **kwargs):
 
         is_new = not self.present_in_database
@@ -829,6 +857,8 @@ class Device(PrimaryModel, ConfigContextModel, StatusModel):
             self.rack.name if self.rack else None,
             self.position,
             self.get_face_display(),
+            self.device_redundancy_group.slug if self.device_redundancy_group else None,
+            self.device_redundancy_group_priority,
             self.secrets_group.name if self.secrets_group else None,
             self.primary_ip if self.primary_ip else None,
             self.comments,
@@ -922,6 +952,70 @@ class Device(PrimaryModel, ConfigContextModel, StatusModel):
         return Device.objects.filter(parent_bay__device=self.pk)
 
 
+@extras_features(
+    "custom_fields",
+    "custom_links",
+    "custom_validators",
+    "export_templates",
+    "graphql",
+    "relationships",
+    "statuses",
+    "webhooks",
+)
+class InterfaceRedundancyGroup(PrimaryModel, ConfigContextModel, StatusModel):  # pylint: disable=too-many-ancestors
+    """
+    A collection of Interfaces that supply a redundancy group for protocols like HSRP/VRRP.
+    """
+
+    name = models.CharField(max_length=100, unique=True)
+    slug = AutoSlugField(populate_from="name")
+    description = models.CharField(max_length=200, blank=True)
+    members = models.ManyToManyField(
+        to="dcim.Interface",
+        through="dcim.InterfaceRedundancyGroupAssociation",
+        related_name="groups",
+        blank=True,
+    )
+    subscribers = models.ManyToManyField(to="dcim.Device", related_name="interface_redundancy_group", blank=True)
+
+    class Meta:
+        """Meta class."""
+
+        ordering = ["name"]
+
+    def get_absolute_url(self):
+        """Return detail view for InterfaceRedundancyGroup."""
+        return reverse("dcim:interfaceredundancygroup", args=[self.id])
+
+    def __str__(self):
+        """Stringify instance."""
+        return self.name
+
+
+class InterfaceRedundancyGroupAssociation(BaseModel):
+    """The intermediary model for associating Interface(s) to InterfaceRedundancyGroup(s)."""
+
+    group = models.ForeignKey(to="dcim.InterfaceRedundancyGroup", on_delete=models.CASCADE)
+    interface = models.ForeignKey(to="dcim.Interface", on_delete=models.CASCADE)
+    priority = models.PositiveSmallIntegerField()
+    primary_ip = models.ForeignKey(
+        to="ipam.IPAddress", on_delete=models.CASCADE, related_name="interface_redundancy_primary_ip"
+    )
+    virtual_ip = models.ForeignKey(
+        to="ipam.IPAddress", on_delete=models.CASCADE, null=True, related_name="interface_redundancy_virtual_ip"
+    )
+
+    class Meta:
+        """Meta class."""
+
+        unique_together = (("group", "interface"),)
+        ordering = ("group", "-priority")
+
+    def __str__(self):
+        """Stringify instance."""
+        return f"{self.group}: {self.interface.device} {self.interface}: {self.priority}"
+
+
 #
 # Virtual chassis
 #
@@ -997,4 +1091,75 @@ class VirtualChassis(PrimaryModel):
             self.name,
             self.domain,
             self.master.name if self.master else None,
+        )
+
+
+@extras_features(
+    "custom_fields",
+    "custom_links",
+    "custom_validators",
+    "dynamic_groups",
+    "export_templates",
+    "graphql",
+    "relationships",
+    "statuses",
+    "webhooks",
+)
+class DeviceRedundancyGroup(PrimaryModel, StatusModel):
+    """
+    A DeviceRedundancyGroup represents a logical grouping of physical hardware for the purposes of high-availability.
+    """
+
+    name = models.CharField(max_length=100, unique=True)
+    slug = AutoSlugField(populate_from="name")
+    description = models.CharField(max_length=200, blank=True)
+
+    failover_strategy = models.CharField(
+        max_length=50,
+        blank=True,
+        choices=DeviceRedundancyGroupFailoverStrategyChoices,
+        verbose_name="Failover strategy",
+    )
+
+    comments = models.TextField(blank=True)
+
+    secrets_group = models.ForeignKey(
+        to="extras.SecretsGroup",
+        on_delete=models.SET_NULL,
+        default=None,
+        blank=True,
+        null=True,
+    )
+
+    clone_fields = [
+        "failover_strategy",
+        "status",
+        "secrets_group",
+    ]
+
+    csv_headers = ["name", "failover_strategy", "status", "secrets_group", "comments"]
+
+    class Meta:
+        ordering = ("name",)
+
+    @property
+    def members_sorted(self):
+        return self.members.order_by("device_redundancy_group_priority")
+
+    def __str__(self):
+        return self.name
+
+    def natural_key(self):
+        return (self.name,)
+
+    def get_absolute_url(self):
+        return reverse("dcim:deviceredundancygroup", args=[self.slug])
+
+    def to_csv(self):
+        return (
+            self.name,
+            self.failover_strategy,
+            self.get_status_display(),
+            self.secrets_group.name if self.secrets_group else None,
+            self.comments,
         )
