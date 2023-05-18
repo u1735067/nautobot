@@ -6,9 +6,11 @@ import sys
 
 from celery import Celery, shared_task, signals
 from celery.fixups.django import DjangoFixup
+from celery.utils.log import get_task_logger
 from django.conf import settings
 from kombu.serialization import register
 from prometheus_client import CollectorRegistry, multiprocess, start_http_server
+import structlog
 
 from nautobot.core.celery.encoders import _dumps, _loads
 from nautobot.core.celery.log import NautobotLogHandler
@@ -78,6 +80,20 @@ def import_tasks_from_jobs_root(sender, **kwargs):
 @signals.after_setup_task_logger.connect
 def setup_nautobot_joblogentry_logger(logger, loglevel, logfile, format, colorize, **kwargs):
     logger.addHandler(NautobotLogHandler())
+
+
+@signals.task_prerun.connect
+def redirect_task_stdout_stderr(sender, **kwargs):
+    """Redirect worker stdout and stdin to task logger instead of default celery logger."""
+    print(f"dir(sender.logger): {dir(sender.logger)}")
+    print(f"type(sender.logger._logger): {type(sender.logger._logger)}")
+    # print(f"sender.app.conf.items(): {dict(sender.app.conf.items())}")
+    print(f"sender.app.conf.worker_redirect_stdouts: {sender.app.conf.worker_redirect_stdouts}")
+    print(f"sender.app.conf.worker_redirect_stdouts_level: {sender.app.conf.worker_redirect_stdouts_level}")
+    if sender.app.conf.worker_redirect_stdouts:
+        sender.app.log.redirect_stdouts_to_logger(
+            sender.logger._logger, loglevel=sender.app.conf.worker_redirect_stdouts_level
+        )
 
 
 @signals.worker_ready.connect

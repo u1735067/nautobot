@@ -9,7 +9,6 @@ from nautobot.core.celery.encoders import NautobotKombuJSONEncoder
 structlog.configure(
     processors=[
         structlog.stdlib.add_logger_name,
-        structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
@@ -22,7 +21,8 @@ structlog.configure(
                 structlog.processors.CallsiteParameter.LINENO,
             }
         ),
-        structlog.processors.JSONRenderer(cls=NautobotKombuJSONEncoder, ensure_ascii=False, default=None),
+        structlog.stdlib.render_to_log_kwargs,
+        # structlog.processors.JSONRenderer(cls=NautobotKombuJSONEncoder, ensure_ascii=False, default=None),
     ],
     cache_logger_on_first_use=True,
 )

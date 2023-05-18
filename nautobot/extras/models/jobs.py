@@ -31,9 +31,7 @@ from nautobot.extras.choices import (
     LogLevelChoices,
 )
 from nautobot.extras.constants import (
-    JOB_LOG_MAX_ABSOLUTE_URL_LENGTH,
     JOB_LOG_MAX_GROUPING_LENGTH,
-    JOB_LOG_MAX_LOG_OBJECT_LENGTH,
     JOB_MAX_GROUPING_LENGTH,
     JOB_MAX_NAME_LENGTH,
     JOB_MAX_SOURCE_LENGTH,
@@ -748,7 +746,7 @@ class JobResult(BaseModel, CustomFieldModel):
         logger=None,  # pylint: disable=redefined-outer-name
     ):
         """
-        General-purpose API for storing log messages in a JobResult's 'data' field.
+        General-purpose API for creating JobLogEntry objects.
 
         message (str): Message to log (an attempt will be made to sanitize sensitive information from this message)
         obj (object): Object associated with this message, if any
