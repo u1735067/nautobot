@@ -1355,7 +1355,7 @@ class JobLogEntryTest(TestCase):  # TODO: change to BaseModelTestCase
 
     def test_log_entry_creation(self):
         log = JobLogEntry(
-            log_level=LogLevelChoices.LOG_SUCCESS,
+            log_level=LogLevelChoices.LOG_INFO,
             job_result=self.job_result,
             grouping="run",
             message="This is a test",
@@ -1374,7 +1374,7 @@ class JobLogEntryTest(TestCase):  # TODO: change to BaseModelTestCase
 
         joblogentry_a = JobLogEntry(
             job_result=self.job_result,
-            log_level=LogLevelChoices.LOG_SUCCESS,
+            log_level=LogLevelChoices.LOG_INFO,
             grouping="run",
             message="Django Test",
             created=datetime.datetime(2020, 1, 26, 15, 37, 36),
@@ -1391,7 +1391,7 @@ class JobLogEntryTest(TestCase):  # TODO: change to BaseModelTestCase
 
         joblogentry_a = JobLogEntry(
             job_result=self.job_result,
-            log_level=LogLevelChoices.LOG_SUCCESS,
+            log_level=LogLevelChoices.LOG_INFO,
             grouping="run",
             message="Django Test 2",
             created=datetime.datetime(2030, 5, 26, 15, 37, 36),

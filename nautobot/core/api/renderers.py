@@ -1,6 +1,6 @@
 from rest_framework.renderers import BrowsableAPIRenderer, JSONRenderer
 
-from nautobot.core.celery import NautobotKombuJSONEncoder
+from nautobot.core.celery.encoders import NautobotKombuJSONEncoder
 
 
 class FormlessBrowsableAPIRenderer(BrowsableAPIRenderer):

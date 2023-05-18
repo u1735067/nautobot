@@ -689,10 +689,10 @@ class JobResultTable(BaseTable):
         Define custom rendering for the summary column.
         """
         log_objects = record.job_log_entries.all()
-        success = log_objects.filter(log_level=LogLevelChoices.LOG_SUCCESS).count()
+        success = log_objects.filter(log_level=LogLevelChoices.LOG_INFO).count()
         info = log_objects.filter(log_level=LogLevelChoices.LOG_INFO).count()
         warning = log_objects.filter(log_level=LogLevelChoices.LOG_WARNING).count()
-        failure = log_objects.filter(log_level=LogLevelChoices.LOG_FAILURE).count()
+        failure = log_objects.filter(log_level=LogLevelChoices.LOG_ERROR).count()
         return format_html(
             """<label class="label label-success">{}</label>
             <label class="label label-info">{}</label>

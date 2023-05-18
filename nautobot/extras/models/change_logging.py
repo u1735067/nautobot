@@ -5,7 +5,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.urls import NoReverseMatch, reverse
 
-from nautobot.core.celery import NautobotKombuJSONEncoder
+from nautobot.core.celery.encoders import NautobotKombuJSONEncoder
 from nautobot.core.models import BaseModel
 from nautobot.core.models.utils import serialize_object, serialize_object_v2
 from nautobot.core.utils.data import shallow_compare_dict

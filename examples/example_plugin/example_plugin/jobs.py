@@ -27,13 +27,13 @@ class ExampleDryRunJob(Job):
                 log_msg = f"Removing serial on {devices_with_serial.count()} devices."
                 if dryrun:
                     log_msg += " (DRYRUN)"
-                self.log_info(log_msg)
+                self.logger.info(log_msg)
                 for device in devices_with_serial:
                     if not dryrun:
                         device.serial = ""
                         device.save()
         except Exception:
-            self.log_failure(f"{self.__name__} failed. Database changes rolled back.")
+            self.logger.error(f"{self.__name__} failed. Database changes rolled back.")
 
 
 class ExampleJob(Job):
@@ -75,11 +75,11 @@ class ExampleLoggingJob(Job):
         ]
 
     def run(self, interval):
-        self.log_debug(message=f"Running for {interval} seconds.")
+        self.logger.debug(f"Running for {interval} seconds.")
         for step in range(1, interval + 1):
             time.sleep(1)
-            self.log_info(message=f"Step {step}")
-        self.log_success(obj=None)
+            self.logger.info(f"Step {step}")
+        self.logger.info("Success")
         return f"Ran for {interval} seconds"
 
 
@@ -95,21 +95,21 @@ class ExampleJobHookReceiver(JobHookReceiver):
 
         # log diff output
         snapshots = change.get_snapshots()
-        self.log_info(f"DIFF: {snapshots['differences']}")
+        self.logger.info(f"DIFF: {snapshots['differences']}")
 
         # validate changes to serial field
         if "serial" in snapshots["differences"]["added"]:
             old_serial = snapshots["differences"]["removed"]["serial"]
             new_serial = snapshots["differences"]["added"]["serial"]
-            self.log_info(f"{changed_object} serial has been changed from {old_serial} to {new_serial}")
+            self.logger.info(f"{changed_object} serial has been changed from {old_serial} to {new_serial}")
 
             # Check the new serial is valid and revert if necessary
             if not self.validate_serial(new_serial):
                 changed_object.serial = old_serial
                 changed_object.save()
-                self.log_info(f"{changed_object} serial {new_serial} was not valid. Reverted to {old_serial}")
+                self.logger.info(f"{changed_object} serial {new_serial} was not valid. Reverted to {old_serial}")
 
-            self.log_success(message=f"Serial validation completed for {changed_object}")
+            self.logger.info("Success", validation_completed=changed_object)
 
     def validate_serial(self, serial):
         # add business logic to validate serial
@@ -121,7 +121,7 @@ class ExampleSimpleJobButtonReceiver(JobButtonReceiver):
         name = "Example Simple Job Button Receiver"
 
     def receive_job_button(self, obj):
-        self.log_info(obj=obj, message="Running Job Button Receiver.")
+        self.logger.info("Running Job Button Receiver.", obj=obj)
         # Add job logic here
 
 
@@ -130,26 +130,32 @@ class ExampleComplexJobButtonReceiver(JobButtonReceiver):
         name = "Example Complex Job Button Receiver"
 
     def _run_location_job(self, obj):
-        self.log_info(obj=obj, message="Running Location Job Button Receiver.")
+        self.logger.info("Running Location Job Button Receiver.", obj=obj)
         # Run Location Job function
 
     def _run_device_job(self, obj):
-        self.log_info(obj=obj, message="Running Device Job Button Receiver.")
+        self.logger.info("Running Device Job Button Receiver.", obj=obj)
         # Run Device Job function
 
     def receive_job_button(self, obj):
         user = self.request.user
         if isinstance(obj, Location):
             if not user.has_perm("dcim.add_location"):
-                self.log_failure(obj=obj, message=f"User '{user}' does not have permission to add a Location.")
+                self.logger.error(
+                    f"User '{user}' does not have permission to add a Location.",
+                    obj=obj,
+                )
             else:
                 self._run_location_job(obj)
         if isinstance(obj, Device):
             if not user.has_perm("dcim.add_device"):
-                self.log_failure(obj=obj, message=f"User '{user}' does not have permission to add a Device.")
+                self.logger.error(
+                    f"User '{user}' does not have permission to add a Device.",
+                    obj=obj,
+                )
             else:
                 self._run_device_job(obj)
-        self.log_failure(obj=obj, message=f"Unable to run Job Button for type {type(obj).__name__}.")
+        self.logger.error(f"Unable to run Job Button for type {type(obj).__name__}.", obj=obj)
 
 
 jobs = (

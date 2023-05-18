@@ -330,9 +330,7 @@ class JobTest(TransactionTestCase):
 
         # Assert stuff
         self.assertEqual(job_result.status, JobResultStatusChoices.STATUS_FAILURE)
-        log_failure = JobLogEntry.objects.filter(
-            grouping="initialization", log_level=LogLevelChoices.LOG_FAILURE
-        ).first()
+        log_failure = JobLogEntry.objects.filter(grouping="initialization", log_level=LogLevelChoices.LOG_ERROR).first()
         self.assertIn("location is a required field", log_failure.message)
 
     def test_job_latest_result_property(self):
@@ -580,7 +578,7 @@ class RunJobManagementCommandTest(TransactionTestCase):
         self.assertIn(f"{job_model.class_path}: SUCCESS", out)
         self.assertEqual("", err)
 
-        success_log = JobLogEntry.objects.filter(log_level=LogLevelChoices.LOG_SUCCESS).first()
+        success_log = JobLogEntry.objects.filter(log_level=LogLevelChoices.LOG_INFO).first()
         self.assertEqual(success_log.message, "Status created successfully.")
 
         status = Status.objects.get(name="Test Status")

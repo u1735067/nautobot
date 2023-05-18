@@ -1,6 +1,7 @@
 # Data models relating to Jobs
 
 from datetime import timedelta
+import json
 import logging
 import os
 
@@ -16,7 +17,8 @@ from django.utils import timezone
 from django_celery_beat.clockedschedule import clocked
 from prometheus_client import Histogram
 
-from nautobot.core.celery import app, NautobotKombuJSONEncoder
+from nautobot.core.celery import app
+from nautobot.core.celery.encoders import NautobotKombuJSONEncoder
 from nautobot.core.models import BaseManager, BaseModel
 from nautobot.core.models.fields import AutoSlugField, JSONArrayField
 from nautobot.core.models.generics import OrganizationalModel, PrimaryModel
@@ -480,15 +482,8 @@ class JobLogEntry(BaseModel):
     log_level = models.CharField(
         max_length=32, choices=LogLevelChoices, default=LogLevelChoices.LOG_INFO, db_index=True
     )
-    grouping = models.CharField(max_length=JOB_LOG_MAX_GROUPING_LENGTH, default="main")
-    message = models.TextField(blank=True)
+    message = models.JSONField(encoder=NautobotKombuJSONEncoder, null=True, blank=True)
     created = models.DateTimeField(default=timezone.now)
-    # Storing both of the below as strings instead of using GenericForeignKey to support
-    # compatibility with existing JobResult logs. GFK would pose a problem with dangling foreign-key
-    # references, whereas this allows us to retain all records for as long as the entry exists.
-    # This also simplifies migration from the JobResult Data field as these were stored as strings.
-    log_object = models.CharField(max_length=JOB_LOG_MAX_LOG_OBJECT_LENGTH, blank=True, default="")
-    absolute_url = models.CharField(max_length=JOB_LOG_MAX_ABSOLUTE_URL_LENGTH, blank=True, default="")
 
     csv_headers = ["created", "grouping", "log_level", "log_object", "message"]
 
@@ -766,16 +761,21 @@ class JobResult(BaseModel, CustomFieldModel):
 
         message = sanitize(str(message))
 
+        json_message = json.dumps(
+            {
+                "message": message,
+                "grouping": grouping[:JOB_LOG_MAX_GROUPING_LENGTH],
+                "log_object": obj if obj else None,
+            },
+            cls=NautobotKombuJSONEncoder,
+            ensure_ascii=False,
+        )
+
         log = JobLogEntry(
             job_result=self,
             log_level=level_choice,
-            grouping=grouping[:JOB_LOG_MAX_GROUPING_LENGTH],
-            message=message,
+            message=json_message,
             created=timezone.now().isoformat(),
-            log_object=str(obj)[:JOB_LOG_MAX_LOG_OBJECT_LENGTH] if obj else "",
-            absolute_url=obj.get_absolute_url()[:JOB_LOG_MAX_ABSOLUTE_URL_LENGTH]
-            if hasattr(obj, "get_absolute_url")
-            else "",
         )
 
         # If the override is provided, we want to use the default database(pass no using argument)

@@ -1,7 +1,9 @@
+import json
 import logging
 
+from django.utils.functional import SimpleLazyObject
+from django.utils.module_loading import import_string
 from rest_framework.utils.encoders import JSONEncoder
-
 
 logger = logging.getLogger(__name__)
 
@@ -51,3 +53,30 @@ class NautobotKombuJSONEncoder(JSONEncoder):
             return obj
         else:
             return super().default(obj)
+
+
+def nautobot_kombu_json_loads_hook(data):
+    """
+    In concert with the NautobotKombuJSONEncoder json encoder, this object hook method decodes
+    objects that implement the `__nautobot_type__` interface via the `nautobot_deserialize()` class method.
+    """
+    if "__nautobot_type__" in data:
+        qual_name = data.pop("__nautobot_type__")
+        logger.debug("Performing nautobot deserialization for type %s", qual_name)
+        cls = import_string(qual_name)  # fully qualified dotted import path
+        if cls:
+            return SimpleLazyObject(lambda: cls.objects.get(id=data["id"]))
+        else:
+            raise TypeError(f"Unable to import {qual_name} during nautobot deserialization")
+    else:
+        return data
+
+
+# Encoder function
+def _dumps(obj):
+    return json.dumps(obj, cls=NautobotKombuJSONEncoder, ensure_ascii=False)
+
+
+# Decoder function
+def _loads(obj):
+    return json.loads(obj, object_hook=nautobot_kombu_json_loads_hook)

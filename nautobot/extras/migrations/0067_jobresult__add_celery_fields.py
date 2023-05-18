@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 import django.db.models.deletion
-import nautobot.core.celery
+import nautobot.core.celery.encoders
 import nautobot.extras.utils
 
 
@@ -71,7 +71,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="jobresult",
             name="task_kwargs",
-            field=models.JSONField(blank=True, encoder=nautobot.core.celery.NautobotKombuJSONEncoder, null=True),
+            field=models.JSONField(
+                blank=True, encoder=nautobot.core.celery.encoders.NautobotKombuJSONEncoder, null=True
+            ),
         ),
         migrations.AddField(
             model_name="jobresult",
