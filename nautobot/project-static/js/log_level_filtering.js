@@ -3,6 +3,11 @@ $('input.log-filter').on('input keydown', function(ev) {
 
     // Ignore the return key to prevent form submission
     if(ev.keyCode === 13) {
+        if (pending_result_id !== null) {
+            qs = `?q=${this.value}`
+            window.sessionStorage.setItem(session_key, qs);
+            update_log_table(qs, '/extras/job-results/' + pending_result_id + '/log-table/');
+        }
         return false;
     }
 

@@ -31,7 +31,7 @@ function updateLogTable(result_id) {
 }
 
 $(document).ready(function(){
-    if (pending_result_id !== null) {
+    if ($("#pending-result-label").children("label").eq(0).text() === "Running") {
         (function checkPendingResult() {
             // Keep checking results, update the table, and refresh the logs. When done, refresh the
             // page to finalize the job results output.
