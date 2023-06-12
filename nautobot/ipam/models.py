@@ -911,21 +911,22 @@ class Prefix(PrimaryModel):
             child_ips = netaddr.IPSet(self.ip_addresses.values_list("host", flat=True))
 
         child_prefixes = netaddr.IPSet(p.prefix for p in self.children.only("network", "prefix_length").iterator())
-        numerator = child_prefixes | child_ips
+        numerator_set = child_prefixes | child_ips
 
         # Exclude network and broadcast address from the denominator unless they've been assigned to an IPAddress or child pool.
+        # Only applies to IPv4 prefixes with a prefix length of /30 or shorter
         if all(
             [
-                not self.children.exclude(type=choices.PrefixTypeChoices.TYPE_POOL).exists(),
                 denominator > 2,
                 self.type != choices.PrefixTypeChoices.TYPE_POOL,
                 self.ip_version == 4,
+                not self.children.exclude(type=choices.PrefixTypeChoices.TYPE_POOL).exists(),
             ]
         ):
-            if not any([self.network in numerator, self.broadcast in numerator]):
+            if not any([self.network in numerator_set, self.broadcast in numerator_set]):
                 denominator -= 2
 
-        return UtilizationData(numerator=numerator.size, denominator=denominator)
+        return UtilizationData(numerator=numerator_set.size, denominator=denominator)
 
 
 @extras_features(
@@ -1421,6 +1422,10 @@ class Service(PrimaryModel):
             "protocol",
             "ports",
         )  # (protocol, port) may be non-unique
+        constraints = [
+            models.UniqueConstraint(fields=["name", "device"], name="unique_device_service_name"),
+            models.UniqueConstraint(fields=["name", "virtual_machine"], name="unique_virtual_machine_service_name"),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.get_protocol_display()}/{self.port_list})"

@@ -337,7 +337,7 @@ class PrefixFactory(PrimaryModelFactory):
         action = "create" if create else "build"
         is_ipv6 = self.ip_version == 6
 
-        # Create child prefixes for containers, otherwise create child ip addresses
+        # Create child prefixes for containers, randomly create prefixes or ip addresses for networks
         if self.type == PrefixTypeChoices.TYPE_CONTAINER:
             child_factory = PrefixFactory
         elif self.type == PrefixTypeChoices.TYPE_NETWORK:
