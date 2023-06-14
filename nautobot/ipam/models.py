@@ -277,8 +277,10 @@ class VRFDeviceAssignment(BaseModel):
         unique_together = [
             ["vrf", "device"],
             ["vrf", "virtual_machine"],
-            ["device", "rd", "name"],
-            ["virtual_machine", "rd", "name"],
+            # TODO: desirable in the future, but too strict for 1.x-to-2.0 data migrations that may result in
+            # multiple "cleanup" VRFs with the same RD/name being assigned to a single device or VM.
+            # ["device", "rd", "name"],
+            # ["virtual_machine", "rd", "name"],
         ]
 
     def __str__(self):
