@@ -149,9 +149,9 @@ class VRF(PrimaryModel):
     ]
 
     class Meta:
-        ordering = ("namespace", "name", "rd")  # (name, rd) may be non-unique
+        ordering = ("namespace", "name", "rd")
         unique_together = [
-            ["namespace", "name"],
+            # ["namespace", "name"],  # TODO: desirable long-term but may be problematic when first migrating to 2.0
             ["namespace", "rd"],
         ]
         verbose_name = "VRF"
