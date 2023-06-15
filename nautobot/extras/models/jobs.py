@@ -687,7 +687,6 @@ class JobResult(BaseModel, CustomFieldModel):
         obj=None,
         level_choice=LogLevelChoices.LOG_INFO,
         grouping="main",
-        logger=None,  # pylint: disable=redefined-outer-name
     ):
         """
         General-purpose API for storing log messages in a JobResult's 'data' field.
@@ -696,7 +695,6 @@ class JobResult(BaseModel, CustomFieldModel):
         obj (object): Object associated with this message, if any
         level_choice (LogLevelChoices): Message severity level
         grouping (str): Grouping to store the log message under
-        logger (logging.logger): Optional logger to also output the message to
         """
         if level_choice not in LogLevelChoices.as_dict():
             raise ValueError(f"Unknown logging level: {level_choice}")
@@ -723,10 +721,6 @@ class JobResult(BaseModel, CustomFieldModel):
             log.save()
         else:
             log.save(using=JOB_LOGS)
-
-        if logger:
-            log_level = getattr(logging, level_choice.upper(), logging.INFO)
-            logger.log(log_level, message)
 
 
 #

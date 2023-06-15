@@ -26,3 +26,15 @@ def sanitize(string, replacement="(redacted)"):
             logger.error('Error in string sanitization using "%s"', sanitizer)
 
     return string
+
+
+def get_null_logger():
+    """Return a logger that discards all messages."""
+    logger = logging.getLogger("nautobot.core.utils.logging.NullLogger")
+    logger.addHandler(logging.NullHandler())
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+    return logger
+
+
+null_logger = get_null_logger()
